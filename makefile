@@ -5,50 +5,38 @@ CFLAGS = -Wall -g
 CXXFLAGS = -Wall -g
 
 # Directorios
-SRC_DIR_CAP1 = SRC/Cap1
-BIN_DIR_CAP1 = bin/Cap1
+SRC_DIR = SRC/Cap1
+BIN_DIR = bin/Cap1
 
-SRC_DIR_CAP3 = SRC/Cap3
-BIN_DIR_CAP3 = bin/Cap3
+# Archivos fuente
+CAP1_SRC_C   = $(SRC_DIR)/Listing1.1.c
+CAP1_SRC_CPP = $(SRC_DIR)/Listing1.2.cpp
+CAP1_HDR     = $(SRC_DIR)/Listing1.3.hpp
 
-# ====== CAPÍTULO 1 (ejecutable único) ======
-CAP1_SRC_C   = $(SRC_DIR_CAP1)/Listing1.1.c
-CAP1_SRC_CPP = $(SRC_DIR_CAP1)/Listing1.2.cpp
-CAP1_HDR     = $(SRC_DIR_CAP1)/Listing1.3.hpp
+# Objetos en bin/Cap1
+CAP1_OBJ = $(BIN_DIR)/Listing1.1.o $(BIN_DIR)/Listing1.2.o
+CAP1_BIN = $(BIN_DIR)/programa_cap1
 
-CAP1_OBJ = $(BIN_DIR_CAP1)/Listing1.1.o $(BIN_DIR_CAP1)/Listing1.2.o
-CAP1_BIN = $(BIN_DIR_CAP1)/programa_cap1
+# Regla por defecto
+all: cap1
 
-# ====== CAPÍTULO 3 (cada listing es ejecutable) ======
-CAP3_SRC = $(wildcard $(SRC_DIR_CAP3)/*.c)
-CAP3_BINS = $(patsubst $(SRC_DIR_CAP3)/%.c,$(BIN_DIR_CAP3)/%,$(CAP3_SRC))
-
-# ====== OBJETIVO PRINCIPAL ======
-all: cap1 cap3
-
-# ---------------- CAPÍTULO 1 ----------------
+# Ejecutable de Cap1
 cap1: $(CAP1_BIN)
 
 $(CAP1_BIN): $(CAP1_OBJ)
-	@mkdir -p $(BIN_DIR_CAP1)
+	@mkdir -p $(BIN_DIR)
 	$(CXX) -o $@ $(CAP1_OBJ)
 
-$(BIN_DIR_CAP1)/Listing1.1.o: $(CAP1_SRC_C) $(CAP1_HDR)
-	@mkdir -p $(BIN_DIR_CAP1)
+# Regla: compilar .c a .o
+$(BIN_DIR)/Listing1.1.o: $(SRC_DIR)/Listing1.1.c $(CAP1_HDR)
+	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN_DIR_CAP1)/Listing1.2.o: $(CAP1_SRC_CPP) $(CAP1_HDR)
-	@mkdir -p $(BIN_DIR_CAP1)
+# Regla: compilar .cpp a .o
+$(BIN_DIR)/Listing1.2.o: $(SRC_DIR)/Listing1.2.cpp $(CAP1_HDR)
+	@mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# ---------------- CAPÍTULO 3 ----------------
-cap3: $(CAP3_BINS)
-
-# Regla genérica para compilar cada listing de Cap3
-$(BIN_DIR_CAP3)/%: $(SRC_DIR_CAP3)/%.c
-	@mkdir -p $(BIN_DIR_CAP3)
-	$(CC) $(CFLAGS) $< -o $@
-
-# ---------------- LIMPIEZA ----------------
+# Limpiar
 clean:
-	rm -rf bin/Cap1 bin/Cap3
+	rm -rf $(BIN_DIR)
