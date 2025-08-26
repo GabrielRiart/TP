@@ -1,32 +1,59 @@
+# =========================
 # Compiladores y flags
-CC  = gcc
-CXX = g++
-CFLAGS = -Wall -g
+# =========================
+CC       = gcc
+CXX      = g++
+CFLAGS   = -Wall -g
 CXXFLAGS = -Wall -g
 
+# =========================
 # Directorios
+# =========================
 SRC_DIR_CAP1 = SRC/Cap1
 BIN_DIR_CAP1 = bin/Cap1
+
+SRC_DIR_CAP2 = SRC/Cap2
+BIN_DIR_CAP2 = bin/Cap2
 
 SRC_DIR_CAP3 = SRC/Cap3
 BIN_DIR_CAP3 = bin/Cap3
 
-# ====== CAPÍTULO 1 (ejecutable único) ======
-CAP1_SRC_C   = $(SRC_DIR_CAP1)/Listing1.1.c
-CAP1_SRC_CPP = $(SRC_DIR_CAP1)/Listing1.2.cpp
-CAP1_HDR     = $(SRC_DIR_CAP1)/Listing1.3.hpp
+# =========================
+# CAPÍTULO 1 (ejecutable único)
+# =========================
+CAP1_SRC_C    = $(SRC_DIR_CAP1)/Listing1.1.c
+CAP1_SRC_CPP  = $(SRC_DIR_CAP1)/Listing1.2.cpp
+CAP1_HDR      = $(SRC_DIR_CAP1)/Listing1.3.hpp
+CAP1_OBJ      = $(BIN_DIR_CAP1)/Listing1.1.o \
+                $(BIN_DIR_CAP1)/Listing1.2.o
+CAP1_BIN      = $(BIN_DIR_CAP1)/programa_cap1
 
-CAP1_OBJ = $(BIN_DIR_CAP1)/Listing1.1.o $(BIN_DIR_CAP1)/Listing1.2.o
-CAP1_BIN = $(BIN_DIR_CAP1)/programa_cap1
+# =========================
+# CAPÍTULO 2 (listings 2.7, 2.8, 2.9)
+# =========================
+CAP2_LIST27   = $(SRC_DIR_CAP2)/Listing2.7.c
+CAP2_LIST28   = $(SRC_DIR_CAP2)/Listing2.8.c
+CAP2_LIST29   = $(SRC_DIR_CAP2)/Listing2.9.c
 
-# ====== CAPÍTULO 3 (cada listing es ejecutable) ======
-CAP3_SRC = $(wildcard $(SRC_DIR_CAP3)/*.c)
+CAP2_LIB      = $(BIN_DIR_CAP2)/libtest.a
+CAP2_APP_OBJ  = $(BIN_DIR_CAP2)/Listing2.8.o
+CAP2_APP_BIN  = $(BIN_DIR_CAP2)/app
+CAP2_TIFF_BIN = $(BIN_DIR_CAP2)/tifftest
+
+# =========================
+# CAPÍTULO 3 (cada listing es ejecutable)
+# =========================
+CAP3_SRC  = $(wildcard $(SRC_DIR_CAP3)/*.c)
 CAP3_BINS = $(patsubst $(SRC_DIR_CAP3)/%.c,$(BIN_DIR_CAP3)/%,$(CAP3_SRC))
 
-# ====== OBJETIVO PRINCIPAL ======
-all: cap1 cap3
+# =========================
+# OBJETIVO PRINCIPAL
+# =========================
+all: cap1 cap2 cap3
 
-# ---------------- CAPÍTULO 1 ----------------
+# -----------------
+# CAPÍTULO 1
+# -----------------
 cap1: $(CAP1_BIN)
 
 $(CAP1_BIN): $(CAP1_OBJ)
@@ -41,14 +68,42 @@ $(BIN_DIR_CAP1)/Listing1.2.o: $(CAP1_SRC_CPP) $(CAP1_HDR)
 	@mkdir -p $(BIN_DIR_CAP1)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# ---------------- CAPÍTULO 3 ----------------
+# -----------------
+# CAPÍTULO 2
+# -----------------
+cap2: $(CAP2_APP_BIN) $(CAP2_TIFF_BIN)
+
+# Librería estática libtest.a con Listing2.7
+$(CAP2_LIB): $(CAP2_LIST27)
+	@mkdir -p $(BIN_DIR_CAP2)
+	$(CC) $(CFLAGS) -c $< -o $(BIN_DIR_CAP2)/Listing2.7.o
+	ar cr $@ $(BIN_DIR_CAP2)/Listing2.7.o
+
+# Programa app (Listing2.8)
+$(CAP2_APP_OBJ): $(CAP2_LIST28)
+	@mkdir -p $(BIN_DIR_CAP2)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(CAP2_APP_BIN): $(CAP2_APP_OBJ) $(CAP2_LIB)
+	$(CC) -o $@ $(CAP2_APP_OBJ) -L$(BIN_DIR_CAP2) -ltest
+
+# Programa tifftest (Listing2.9)
+$(CAP2_TIFF_BIN): $(CAP2_LIST29)
+	@mkdir -p $(BIN_DIR_CAP2)
+	$(CC) $(CFLAGS) $< -o $@ -ltiff
+
+# -----------------
+# CAPÍTULO 3
+# -----------------
 cap3: $(CAP3_BINS)
 
-# Regla genérica para compilar cada listing de Cap3
 $(BIN_DIR_CAP3)/%: $(SRC_DIR_CAP3)/%.c
 	@mkdir -p $(BIN_DIR_CAP3)
 	$(CC) $(CFLAGS) $< -o $@
 
-# ---------------- LIMPIEZA ----------------
+# -----------------
+# LIMPIEZA
+# -----------------
 clean:
-	rm -rf bin/Cap1 bin/Cap3
+	rm -rf bin/Cap1 bin/Cap2 bin/Cap3
+

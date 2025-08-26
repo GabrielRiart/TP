@@ -1,47 +1,175 @@
-Listing 2.5
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-/* A handle for a temporary file created with write_temp_file. In
- this implementation, it's just a file descriptor. */
+#include <string.h>
+#include <fcntl.h>     // mkstemp
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+/* Tipo para el "handle" del archivo temporal: en esta implementación es un fd */
 typedef int temp_file_handle;
-/* Writes LENGTH bytes from BUFFER into a temporary file. The
- temporary file is immediately unlinked. Returns a handle to the
- temporary file. */
-temp_file_handle write_temp_file (char* buffer, size_t length)
+
+/* Escribe LENGTH bytes desde BUFFER en un archivo temporal.
+ * El archivo se unlinkea inmediatamente. Devuelve fd (>=0) o -1 en error. */
+temp_file_handle write_temp_file(const char* buffer, size_t length)
 {
- /* Create the filename and file. The XXXXXX will be replaced with
- 	characters that make the filename unique. */
- char temp_filename[] = "/tmp/temp_file.XXXXXX";
- int fd = mkstemp (temp_filename);
- /* Unlink the file immediately, so that it will be removed when the
- 	file descriptor is closed. */
- unlink (temp_filename);
- /* Write the number of bytes to the file first. */
- write (fd, &length, sizeof (length));
- /* Now write the data itself. */
- write (fd, buffer, length);
- /* Use the file descriptor as the handle for the temporary file. */
- return fd;
+    char temp_filename[] = "/tmp/temp_file.XXXXXX";
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
+        perror("mkstemp");
+        return -1;
+    }
+
+    /* Unlinkear inmediatamente para que el archivo sea anónimo y se elimine
+       cuando se cierre el fd. No consideramos esto fatal: si falla, imprimimos
+       y seguimos, pero idealmente deberían gestionarse ambos casos. */
+    if (unlink(temp_filename) == -1) {
+        perror("unlink (warning)");
+        /* seguimos: el archivo existe en el filesystem, pero lo seguiremos usando */
+    }
+
+    /* Escribir el tamaño primero (para el ejemplo del libro) */
+    ssize_t wn = write(fd, &length, sizeof(length));
+    if (wn != (ssize_t)sizeof(length)) {
+        if (wn == -1) perror("write length");
+        else fprintf(stderr, "write length: short write\n");
+        close(fd);
+        return -1;
+    }
+
+    /* Escribir los datos en bucle para manejar escrituras parciales */
+    size_t remaining = length;
+    const char* p = buffer;
+    while (remaining > 0) {
+        ssize_t w = write(fd, p, remaining);
+        if (w == -1) {
+            if (errno == EINTR) continue; /* reintentar si fue interrumpido */
+            perror("write data");
+            close(fd);
+            return -1;
+        }
+        remaining -= (size_t)w;
+        p += w;
+    }
+
+    /* Devolver el descriptor (archivo todavía abierto y listo para usarse) */
+    return fd;
 }
-/* Reads the contents of a temporary file TEMP_FILE created with
- write_temp_file. The return value is a newly allocated buffer of
- those contents, which the caller must deallocate with free.
- *LENGTH is set to the size of the contents, in bytes. The
- temporary file is removed. */
-char* read_temp_file (temp_file_handle temp_file, size_t* length)
+
+/* Lee el contenido del archivo temporal (creado por write_temp_file).
+ * *length será rellenado con el tamaño. Devuelve un buffer alocado con malloc
+ * que el llamador debe liberar, o NULL en error. Cierra el fd, lo que eliminará
+ * el archivo del sistema de archivos (si fue unlinkeado). */
+char* read_temp_file(temp_file_handle temp_file, size_t* length)
 {
- char* buffer;
- /* The TEMP_FILE handle is a file descriptor to the temporary file. */
- int fd = temp_file;
- /* Rewind to the beginning of the file. */
- lseek (fd, 0, SEEK_SET);
- /* Read the size of the data in the temporary file. */
- read (fd, length, sizeof (*length));
- /* Allocate a buffer and read the data. */
- buffer = (char*) malloc (*length);
- read (fd, buffer, *length);
- /* Close the file descriptor, which will cause the temporary file to
- go away. */
- close (fd);
- return buffer;
-} 
+    if (temp_file < 0) {
+        fprintf(stderr, "read_temp_file: invalid handle\n");
+        return NULL;
+    }
+
+    int fd = temp_file;
+
+    /* Ir al inicio del archivo */
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("lseek");
+        close(fd);
+        return NULL;
+    }
+
+    /* Leer el tamaño guardado */
+    ssize_t rn = read(fd, length, sizeof(*length));
+    if (rn != (ssize_t)sizeof(*length)) {
+        if (rn == -1) perror("read length");
+        else fprintf(stderr, "read length: short read\n");
+        close(fd);
+        return NULL;
+    }
+
+    /* Reservar buffer (agregamos +1 para poder tratarlo como string si es texto) */
+    if (*length == 0) {
+        /* caso trivial: longitud cero */
+        char* buf = malloc(1);
+        if (!buf) { perror("malloc"); close(fd); return NULL; }
+        buf[0] = '\0';
+        close(fd);
+        return buf;
+    }
+
+    char* buffer = (char*)malloc(*length + 1);
+    if (!buffer) {
+        perror("malloc");
+        close(fd);
+        return NULL;
+    }
+
+    /* Leer los datos en bucle */
+    size_t remaining = *length;
+    char* p = buffer;
+    while (remaining > 0) {
+        ssize_t r = read(fd, p, remaining);
+        if (r == -1) {
+            if (errno == EINTR) continue;
+            perror("read data");
+            free(buffer);
+            close(fd);
+            return NULL;
+        } else if (r == 0) {
+            fprintf(stderr, "read data: unexpected EOF\n");
+            free(buffer);
+            close(fd);
+            return NULL;
+        }
+        remaining -= (size_t)r;
+        p += r;
+    }
+
+    /* Null-terminate (si es texto, útil para printf) */
+    buffer[*length] = '\0';
+
+    /* Cerrar fd -> si previamente unlinkeamos, el archivo se elimina del disco aquí */
+    if (close(fd) == -1) {
+        perror("close");
+        /* Aun así devolvemos buffer; el cierre falló, pero no vamos a recuperar */
+    }
+
+    return buffer;
+}
+
+/* MAIN demostrativo */
+int main(void)
+{
+    const char* text = "Este es un texto de prueba para el archivo temporal.";
+    size_t len = strlen(text);
+
+    printf("Contenido original (%zu bytes): \"%s\"\n", len, text);
+
+    /* Escribir a archivo temporal */
+    temp_file_handle h = write_temp_file(text, len);
+    if (h == -1) {
+        fprintf(stderr, "Error al crear/escribir el archivo temporal\n");
+        return EXIT_FAILURE;
+    }
+    printf("Escrito %zu bytes en archivo temporal (fd=%d). El archivo ya está unlinkeado.\n", len, h);
+
+    /* Leer de vuelta */
+    size_t read_len = 0;
+    char* read_buf = read_temp_file(h, &read_len);
+    if (!read_buf) {
+        fprintf(stderr, "Error al leer el archivo temporal\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("Leído %zu bytes del archivo temporal: \"%s\"\n", read_len, read_buf);
+
+    /* Comprobar contenido */
+    if (read_len == len && memcmp(read_buf, text, len) == 0) {
+        printf("Verificación OK: contenido idéntico.\n");
+    } else {
+        printf("Verificación FALLIDA: contenido distinto.\n");
+    }
+
+    free(read_buf);
+    return EXIT_SUCCESS;
+}
+

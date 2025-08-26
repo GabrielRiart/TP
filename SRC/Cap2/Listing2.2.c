@@ -1,4 +1,3 @@
-Listing 2.2
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>

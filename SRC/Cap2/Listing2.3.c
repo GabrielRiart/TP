@@ -1,4 +1,3 @@
-Listing 2.3
 #include <stdio.h>
 /* The ENVIRON variable contains the environment. */
 extern char** environ;
