@@ -1,10 +1,14 @@
+# ===========================
 # Compiladores y flags
+# ===========================
 CC  = gcc
 CXX = g++
 CFLAGS = -Wall -g
 CXXFLAGS = -Wall -g
 
+# ===========================
 # Directorios
+# ===========================
 SRC_DIR_CAP1 = SRC/Cap1
 BIN_DIR_CAP1 = bin/Cap1
 
@@ -14,7 +18,12 @@ BIN_DIR_CAP2 = bin/Cap2
 SRC_DIR_CAP3 = SRC/Cap3
 BIN_DIR_CAP3 = bin/Cap3
 
-# ====== CAPÍTULO 1 (ejecutable único) ======
+SRC_DIR_CAP4 = SRC/Cap4
+BIN_DIR_CAP4 = bin/Cap4
+
+# ===========================
+# CAPÍTULO 1 (ejecutable único)
+# ===========================
 CAP1_SRC_C   = $(SRC_DIR_CAP1)/Listing1.1.c
 CAP1_SRC_CPP = $(SRC_DIR_CAP1)/Listing1.2.cpp
 CAP1_HDR     = $(SRC_DIR_CAP1)/Listing1.3.hpp
@@ -22,7 +31,9 @@ CAP1_HDR     = $(SRC_DIR_CAP1)/Listing1.3.hpp
 CAP1_OBJ = $(BIN_DIR_CAP1)/Listing1.1.o $(BIN_DIR_CAP1)/Listing1.2.o
 CAP1_BIN = $(BIN_DIR_CAP1)/programa_cap1
 
-# ====== CAPÍTULO 2 ======
+# ===========================
+# CAPÍTULO 2
+# ===========================
 # Listings simples (2.1 → 2.6)
 CAP2_SIMPLE_SRC  = $(SRC_DIR_CAP2)/Listing2.1.c $(SRC_DIR_CAP2)/Listing2.2.c \
                    $(SRC_DIR_CAP2)/Listing2.3.c $(SRC_DIR_CAP2)/Listing2.4.c \
@@ -39,12 +50,22 @@ CAP2_APP_OBJ  = $(BIN_DIR_CAP2)/Listing2.8.o
 CAP2_APP_BIN  = $(BIN_DIR_CAP2)/app
 CAP2_TIFF_BIN = $(BIN_DIR_CAP2)/tifftest
 
-# ====== CAPÍTULO 3 ======
+# ===========================
+# CAPÍTULO 3
+# ===========================
 CAP3_SRC  = $(wildcard $(SRC_DIR_CAP3)/*.c)
 CAP3_BINS = $(patsubst $(SRC_DIR_CAP3)/%.c,$(BIN_DIR_CAP3)/%,$(CAP3_SRC))
 
-# ====== OBJETIVO PRINCIPAL ======
-all: cap1 cap2 cap3
+# ===========================
+# CAPÍTULO 4
+# ===========================
+CAP4_SRC  = $(wildcard $(SRC_DIR_CAP4)/Listing4*.c)
+CAP4_BINS = $(patsubst $(SRC_DIR_CAP4)/%.c,$(BIN_DIR_CAP4)/%,$(CAP4_SRC))
+
+# ===========================
+# OBJETIVO PRINCIPAL
+# ===========================
+all: cap1 cap2 cap3 cap4
 
 # ---------------- CAPÍTULO 1 ----------------
 cap1: $(CAP1_BIN)
@@ -105,7 +126,14 @@ $(BIN_DIR_CAP3)/%: $(SRC_DIR_CAP3)/%.c
 	@mkdir -p $(BIN_DIR_CAP3)
 	$(CC) $(CFLAGS) $< -o $@
 
+# ---------------- CAPÍTULO 4 ----------------
+cap4: $(CAP4_BINS)
+
+$(BIN_DIR_CAP4)/%: $(SRC_DIR_CAP4)/%.c
+	@mkdir -p $(BIN_DIR_CAP4)
+	$(CC) $(CFLAGS) $< -o $@
+
 # ---------------- LIMPIEZA ----------------
 clean:
-	rm -rf bin/Cap1 bin/Cap2 bin/Cap3
+	rm -rf bin/Cap1 bin/Cap2 bin/Cap3 bin/Cap4
 
