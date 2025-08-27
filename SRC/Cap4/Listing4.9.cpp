@@ -16,15 +16,16 @@ private:
     void* thread_return_value_;
 };
 
-// Prototipo de la función que determina si el thread debe salir
+// Prototipo
 bool should_exit_thread_immediately();
 
 void do_some_work()
 {
+    int i = 0;
     while (true) {
-        // Hacer algo útil aquí...
+        std::cout << "[Hilo] Iteración " << i++ << " trabajando...\n";
         if (should_exit_thread_immediately())
-            throw ThreadExitException(nullptr); // nullptr en C++
+            throw ThreadExitException(nullptr); 
     }
 }
 
@@ -33,17 +34,18 @@ void* thread_function(void*)
     try {
         do_some_work();
     }
-    catch (ThreadExitException& ex) { // Captura por referencia
+    catch (ThreadExitException& ex) {
+        std::cout << "[Hilo] Se lanzó excepción de salida.\n";
         ex.DoThreadExit();
     }
     return nullptr;
 }
 
-// Ejemplo dummy de should_exit_thread_immediately
+// Ejemplo dummy: después de 10 iteraciones el hilo sale
 bool should_exit_thread_immediately() {
     static int counter = 0;
     counter++;
-    return counter > 10; // Sale después de 10 iteraciones
+    return counter > 10;
 }
 
 int main()
@@ -51,7 +53,7 @@ int main()
     pthread_t thread;
     pthread_create(&thread, nullptr, thread_function, nullptr);
     pthread_join(thread, nullptr);
-    std::cout << "Thread finalizó correctamente.\n";
+    std::cout << "[Main] Thread finalizó correctamente.\n";
     return 0;
 }
 
