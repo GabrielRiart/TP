@@ -4,61 +4,113 @@
 #include <sys/socket.h>  
 #include <sys/un.h>  
 #include <unistd.h>  
+#include <arpa/inet.h>
 /* Read text from the socket and print it out. Continue until the  
    socket closes. Return nonzero if the client sent a "quit"  
    message, zero otherwise.  */  
-int server (int client_socket)  
+int server(int client_socket) {
+    while (1) {
+        int length;
+        char* text;
+        int n = 0;
+
+        /* Leer longitud completa */
+        while (n < sizeof(length)) {
+            int r = read(client_socket, ((char*)&length)+n, sizeof(length)-n);
+            if (r <= 0) return 0;  // cliente cerró
+            n += r;
+        }
+
+        /* Convertir de red a host (seguro si cliente envía htonl) */
+        length = ntohl(length);
+
+        if (length <= 0 || length > 1024) {
+            fprintf(stderr, "Longitud inválida: %d\n", length);
+            return 0;
+        }
+
+        /* Leer mensaje completo */
+        text = malloc(length + 1);
+        if (!text) return 0;
+
+        n = 0;
+        while (n < length) {
+            int r = read(client_socket, text+n, length-n);
+            if (r <= 0) { free(text); return 0; }
+            n += r;
+        }
+
+        text[length] = '\0';  // terminar cadena
+
+        printf("%s\n", text);
+
+        if (!strcmp(text, "quit")) { free(text); return 1; }
+
+        free(text);
+    }
+}
+
+int main(int argc, char* const argv[])  
 { 
-   while (1) { 
-     int length;  
-     char* text;  
-     /* First, read the length of the text message from the socket. If  
-        read returns zero, the client closed the connection.  */  
-     if (read (client_socket, &length, sizeof (length)) == 0)  
-       return 0;  
-     /* Allocate a buffer to hold the text.  */  
-     text = (char*) malloc (length);  
-     /* Read the text itself, and print it.  */  
-     read (client_socket, text, length);  
-     printf ("%s\n", text);  
-     /* Free the buffer.  */  
-     free (text);  
-     /* If the client sent the message "quit," we're all done.  */  
-     if (!strcmp (text, "quit"))  
-       return 1;  
-   }  
-}  
-int main (int argc, char* const argv[])  
-{ 
-const char* const socket_name = argv[1];  
+    if (argc < 2) {
+        fprintf(stderr, "Uso: %s <socket_name>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    const char* const socket_name = argv[1];  
     int socket_fd;  
     struct sockaddr_un name;  
     int client_sent_quit_message;  
-    /* Create the socket.   */  
-    socket_fd = socket (PF_LOCAL, SOCK_STREAM, 0);  
-    /* Indicate that this is a server.   */  
-    name.sun_family = AF_LOCAL;  
-    strcpy (name.sun_path, socket_name);  
-    bind (socket_fd, &name, SUN_LEN (&name));  
-    /* Listen for connections.   */  
-    listen (socket_fd, 5);  
-    /* Repeatedly accept connections, spinning off one server() to deal  
-       with  each  client.  Continue  until  a  client  sends  a  "quit"  
-message.   */  
+
+    /* Crear socket */
+    socket_fd = socket(PF_LOCAL, SOCK_STREAM, 0);  
+    if (socket_fd == -1) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Configurar sockaddr_un */
+    memset(&name, 0, sizeof(struct sockaddr_un));
+    name.sun_family = AF_LOCAL;
+
+    if (strlen(socket_name) >= sizeof(name.sun_path)) {
+        fprintf(stderr, "Error: socket_name demasiado largo\n");
+        exit(EXIT_FAILURE);
+    }
+    strcpy(name.sun_path, socket_name);  
+
+    /* Borrar si ya existe */
+    unlink(socket_name);
+
+    /* Asociar */
+    if (bind(socket_fd, (struct sockaddr *)&name, SUN_LEN(&name)) == -1) {
+        perror("bind");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(socket_fd, 5) == -1) {
+        perror("listen");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Loop principal */
     do { 
-      struct sockaddr_un client_name;  
-      socklen_t client_name_len;  
-      int client_socket_fd;  
-      /* Accept a connection.   */  
-      client_socket_fd = accept (socket_fd, &client_name, &client_name_len);  
-      /* Handle the connection.   */  
-      client_sent_quit_message = server (client_socket_fd);  
-      /* Close our end of the connection.   */  
-      close (client_socket_fd);  
-    }  
-    while (!client_sent_quit_message);  
-    /* Remove the socket file.   */  
-    close (socket_fd);  
-    unlink (socket_name);  
+        struct sockaddr_un client_name;  
+        socklen_t client_name_len = sizeof(client_name);
+        int client_socket_fd;  
+
+        client_socket_fd = accept(socket_fd, (struct sockaddr *)&client_name, &client_name_len);
+        if (client_socket_fd == -1) {
+            perror("accept");
+            continue;
+        }
+  
+        client_sent_quit_message = server(client_socket_fd);  
+        close(client_socket_fd);  
+    } while (!client_sent_quit_message);  
+
+    close(socket_fd);  
+    unlink(socket_name);  
     return 0;  
 }
+
